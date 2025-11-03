@@ -5,8 +5,8 @@ Built with **NestJS** and **MongoDB**, it handles authentication, pet data manag
 
 ---
 
-### ⚙️ Tech Stack
-- **Framework:** NestJS  
+## ⚙️ Tech Stack
+- **Framework:** [NestJS](https://nestjs.com)  
 - **Database:** MongoDB (via Mongoose)  
 - **Auth:** JWT + bcrypt  
 - **AI Integration:** Gemini API  
@@ -15,7 +15,7 @@ Built with **NestJS** and **MongoDB**, it handles authentication, pet data manag
 
 ---
 
-### 🧩 Core Features
+## 🧩 Core Features
 - 🔐 Secure user authentication (owners, vets, sitters)
 - 🐕 Pet registration, tracking, and health status
 - 🧠 AI-based image analysis (Gemini API)
@@ -23,11 +23,3 @@ Built with **NestJS** and **MongoDB**, it handles authentication, pet data manag
 - 🛍️ Mini shop for pet accessories
 - 💸 Wallet & payment system for services
 
----
-
-### 🚀 Getting Started
-
-#### 1️⃣ Clone the Repository
-```bash
-git clone https://github.com/<your-username>/rifq-backend.git
-cd rifq-backend
