@@ -15,6 +15,7 @@ const auth_module_1 = require("./modules/auth/auth.module");
 const pets_module_1 = require("./modules/pets/pets.module");
 const mongoose_1 = require("@nestjs/mongoose");
 const config_1 = require("@nestjs/config");
+const mail_module_1 = require("./modules/mail/mail.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -26,6 +27,7 @@ exports.AppModule = AppModule = __decorate([
             users_module_1.UsersModule,
             auth_module_1.AuthModule,
             pets_module_1.PetsModule,
+            mail_module_1.MailModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],
