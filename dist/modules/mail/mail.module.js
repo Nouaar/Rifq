@@ -8,34 +8,12 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MailModule = void 0;
 const common_1 = require("@nestjs/common");
-const mailer_1 = require("@nestjs-modules/mailer");
-const config_1 = require("@nestjs/config");
 const mail_service_1 = require("./mail.service");
 let MailModule = class MailModule {
 };
 exports.MailModule = MailModule;
 exports.MailModule = MailModule = __decorate([
     (0, common_1.Module)({
-        imports: [
-            mailer_1.MailerModule.forRootAsync({
-                imports: [config_1.ConfigModule],
-                useFactory: () => ({
-                    transport: {
-                        host: process.env.MAIL_HOST,
-                        port: process.env.MAIL_PORT,
-                        secure: false,
-                        auth: {
-                            user: process.env.MAIL_USER,
-                            pass: process.env.MAIL_PASS,
-                        },
-                    },
-                    defaults: {
-                        from: process.env.MAIL_FROM,
-                    },
-                }),
-                inject: [config_1.ConfigService],
-            }),
-        ],
         providers: [mail_service_1.MailService],
         exports: [mail_service_1.MailService],
     })

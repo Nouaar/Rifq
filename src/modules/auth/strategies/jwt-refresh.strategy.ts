@@ -16,9 +16,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
   'jwt-refresh',
 ) {
   constructor() {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     super({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
       secretOrKey: process.env.JWT_REFRESH_SECRET,
       passReqToCallback: true,
