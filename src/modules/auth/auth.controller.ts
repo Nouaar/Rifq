@@ -76,7 +76,7 @@ export class AuthController {
     return this.authService.getProfile(String(user._id ?? user.id));
   }
 
-    @Post('google')
+  @Post('google')
   async google(@Body() dto: GoogleLoginDto) {
     return this.authService.signInWithGoogle(dto.id_token);
   }
