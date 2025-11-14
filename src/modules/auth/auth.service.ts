@@ -14,6 +14,8 @@ import { CreateUserDto, UserRole } from '../users/dto/create-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { VerifyNewEmailDto } from './dto/verify-new-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import * as bcrypt from 'bcryptjs';
 
 import { jwtVerify, createRemoteJWKSet } from 'jose';
@@ -280,6 +282,89 @@ export class AuthService {
     } as Partial<UserDocument>;
 
     return safe;
+  }
+
+  async forgotPassword(
+    forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    const normalized = forgotPasswordDto.email.toLowerCase();
+    const user = await this.usersService.findByEmail(normalized);
+    
+    // Don't reveal if user exists or not for security
+    if (!user) {
+      return {
+        message: 'If an account exists, a password reset code has been sent to your email.',
+      };
+    }
+
+    // Check if user has a password (Google users don't have passwords)
+    if (!user.password) {
+      return {
+        message: 'If an account exists, a password reset code has been sent to your email.',
+      };
+    }
+
+    // Generate reset code
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Store reset code
+    await this.usersService.update(String(user._id), {
+      passwordResetCode: resetCode,
+      passwordResetCodeExpires: expires,
+    } as any);
+
+    // Send reset code via email
+    try {
+      await this.mailService.sendVerificationCode(user.email, resetCode);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Failed to send password reset email:', err.message);
+      }
+    }
+
+    return {
+      message: 'If an account exists, a password reset code has been sent to your email.',
+    };
+  }
+
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    const normalized = resetPasswordDto.email.toLowerCase();
+    const user = await this.usersService.findByEmail(normalized);
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    // Verify reset code
+    const now = new Date();
+    if (
+      !user.passwordResetCode ||
+      user.passwordResetCode !== resetPasswordDto.code ||
+      !user.passwordResetCodeExpires ||
+      user.passwordResetCodeExpires < now
+    ) {
+      throw new BadRequestException('Invalid or expired reset code');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+
+    // Update password and clear reset code
+    await this.usersService.update(String(user._id), {
+      password: hashedPassword,
+      passwordResetCode: undefined,
+      passwordResetCodeExpires: undefined,
+    } as any);
+
+    // Invalidate all refresh tokens (logout all devices for security)
+    await this.usersService.updateRefreshToken(String(user._id), null);
+
+    return {
+      message: 'Password reset successfully. Please login with your new password.',
+    };
   }
 
   async changeEmail(

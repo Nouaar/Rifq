@@ -17,6 +17,8 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeEmailDto } from './dto/change-email.dto';
 import { VerifyNewEmailDto } from './dto/verify-new-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtRefreshGuard } from '../auth/guards/jwt-refresh.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
@@ -73,6 +75,28 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async verifyEmail(@Body() verifyDto: VerifyEmailDto) {
     return this.authService.verifyEmail(verifyDto.email, verifyDto.code);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset',
+    description:
+      'Send password reset code to email. Returns success message regardless of whether email exists (security).',
+  })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reset password with code',
+    description:
+      'Reset password using code sent to email. Invalidates all refresh tokens.',
+  })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 
   @Get('me')

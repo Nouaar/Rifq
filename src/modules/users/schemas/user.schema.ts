@@ -60,6 +60,12 @@ export class User extends Document {
   emailChangeCodeExpires?: Date;
 
   @Prop()
+  passwordResetCode?: string;
+
+  @Prop()
+  passwordResetCodeExpires?: Date;
+
+  @Prop()
   refreshToken?: string;
 
   @Prop()
