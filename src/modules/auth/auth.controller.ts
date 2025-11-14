@@ -8,18 +8,22 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
 } from '@nestjs/common';
 import { AuthService, Tokens } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtRefreshGuard } from '../auth/guards/jwt-refresh.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/schemas/user.schema';
 import { GoogleLoginDto } from './dto/google-login.dto';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -79,5 +83,24 @@ export class AuthController {
   @Post('google')
   async google(@Body() dto: GoogleLoginDto) {
     return this.authService.signInWithGoogle(dto.id_token);
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change password',
+    description:
+      'Change user password. This will invalidate all existing refresh tokens and require login again.',
+  })
+  async changePassword(
+    @CurrentUser() user: User,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(
+      String(user._id ?? user.id),
+      changePasswordDto,
+    );
   }
 }

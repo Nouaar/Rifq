@@ -108,7 +108,7 @@ export class User extends Document {
   @Prop({ default: false })
   hasPets?: boolean;
 
-     @Prop({ default: 'local' })
+  @Prop({ default: 'local' })
   provider: 'local' | 'google';
 
   @Prop()

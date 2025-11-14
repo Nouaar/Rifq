@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { CreateUserDto, UserRole } from '../users/dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import * as bcrypt from 'bcryptjs';
 
 import { jwtVerify, createRemoteJWKSet } from 'jose';
@@ -277,6 +278,52 @@ export class AuthService {
     } as Partial<UserDocument>;
 
     return safe;
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check if user has a password (might be Google-only user)
+    if (!user.password) {
+      throw new BadRequestException(
+        'Cannot change password for accounts signed in with Google',
+      );
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(
+      changePasswordDto.currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(
+      changePasswordDto.newPassword,
+      10,
+    );
+
+    // Update password and clear refresh token (invalidates all sessions)
+    await this.usersService.update(String(user._id), {
+      password: hashedPassword,
+    } as any);
+
+    // Invalidate all refresh tokens by clearing hashedRefreshToken
+    await this.usersService.updateRefreshToken(String(user._id), null);
+
+    return {
+      message:
+        'Password changed successfully. Please login again with your new password.',
+    };
   }
 
   /** Sign in with Google */
