@@ -35,6 +35,26 @@ let CloudinaryService = class CloudinaryService {
             toStream(file.buffer).pipe(upload);
         });
     }
+    async uploadAudio(file, folder) {
+        if (!process.env.CLOUDINARY_CLOUD_NAME ||
+            !process.env.CLOUDINARY_API_KEY ||
+            !process.env.CLOUDINARY_API_SECRET) {
+            throw new Error('Cloudinary configuration missing. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET');
+        }
+        return new Promise((resolve, reject) => {
+            const upload = cloudinary_1.v2.uploader.upload_stream({
+                folder: folder,
+                resource_type: 'video',
+            }, (error, result) => {
+                if (error) {
+                    console.error('Cloudinary audio upload error:', error);
+                    return reject(new Error(error.message));
+                }
+                resolve(result);
+            });
+            toStream(file.buffer).pipe(upload);
+        });
+    }
     async deleteImage(publicId) {
         await cloudinary_1.v2.uploader.destroy(publicId);
     }

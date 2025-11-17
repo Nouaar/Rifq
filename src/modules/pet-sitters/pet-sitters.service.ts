@@ -81,6 +81,13 @@ export class PetSittersService {
       if (!user || !('_id' in user)) {
         throw new NotFoundException('User not populated correctly');
       }
+      // Merge latitude and longitude from PetSitter into User document
+      if (sitter.latitude !== undefined) {
+        (user as any).latitude = sitter.latitude;
+      }
+      if (sitter.longitude !== undefined) {
+        (user as any).longitude = sitter.longitude;
+      }
       return user;
     });
   }
@@ -93,6 +100,13 @@ export class PetSittersService {
     const user = sitter.user as unknown as UserDocument;
     if (!user || !('_id' in user)) {
       throw new NotFoundException('User not populated correctly');
+    }
+    // Merge latitude and longitude from PetSitter into User document
+    if (sitter.latitude !== undefined) {
+      (user as any).latitude = sitter.latitude;
+    }
+    if (sitter.longitude !== undefined) {
+      (user as any).longitude = sitter.longitude;
     }
     return user;
   }
@@ -142,6 +156,13 @@ export class PetSittersService {
     const user = sitter.user as unknown as UserDocument;
     if (!user || !('_id' in user)) {
       throw new NotFoundException('User not populated correctly');
+    }
+    // Merge latitude and longitude from PetSitter into User document
+    if (sitter.latitude !== undefined) {
+      (user as any).latitude = sitter.latitude;
+    }
+    if (sitter.longitude !== undefined) {
+      (user as any).longitude = sitter.longitude;
     }
     return user;
   }

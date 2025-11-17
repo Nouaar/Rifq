@@ -96,6 +96,12 @@ let VeterinariansService = class VeterinariansService {
             if (!user || !('_id' in user)) {
                 throw new common_1.NotFoundException('User not populated correctly');
             }
+            if (vet.latitude !== undefined) {
+                user.latitude = vet.latitude;
+            }
+            if (vet.longitude !== undefined) {
+                user.longitude = vet.longitude;
+            }
             return user;
         });
     }
@@ -107,6 +113,12 @@ let VeterinariansService = class VeterinariansService {
         const user = vet.user;
         if (!user || !('_id' in user)) {
             throw new common_1.NotFoundException('User not populated correctly');
+        }
+        if (vet.latitude !== undefined) {
+            user.latitude = vet.latitude;
+        }
+        if (vet.longitude !== undefined) {
+            user.longitude = vet.longitude;
         }
         return user;
     }
@@ -133,6 +145,12 @@ let VeterinariansService = class VeterinariansService {
         const user = vet.user;
         if (!user || !('_id' in user)) {
             throw new common_1.NotFoundException('User not populated correctly');
+        }
+        if (vet.latitude !== undefined) {
+            user.latitude = vet.latitude;
+        }
+        if (vet.longitude !== undefined) {
+            user.longitude = vet.longitude;
         }
         return user;
     }

@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { AuthService, Tokens } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -77,6 +78,17 @@ export class AuthController {
     return this.authService.verifyEmail(verifyDto.email, verifyDto.code);
   }
 
+  @Post('verify/resend')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend email verification code',
+    description:
+      'Resend a verification code to the given email address if the user exists and is not already verified.',
+  })
+  async resendVerification(@Body() body: { email: string }) {
+    return this.authService.resendVerificationCode(body.email);
+  }
+
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -104,6 +116,22 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async getProfile(@CurrentUser() user: User) {
     return this.authService.getProfile(String(user._id ?? user.id));
+  }
+
+  @Get('email-exists')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check if email exists',
+    description: 'Check if an email address is already registered',
+  })
+  async checkEmailExists(@Req() req: Request) {
+    const email = req.query.email as string;
+    if (!email) {
+      return { exists: false };
+    }
+    const normalized = email.toLowerCase().trim();
+    const user = await this.authService.checkEmailExists(normalized);
+    return { exists: user !== null };
   }
 
   @Post('google')

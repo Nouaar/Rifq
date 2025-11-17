@@ -18,6 +18,9 @@ const pet_sitters_module_1 = require("./modules/pet-sitters/pet-sitters.module")
 const mongoose_1 = require("@nestjs/mongoose");
 const config_1 = require("@nestjs/config");
 const mail_module_1 = require("./modules/mail/mail.module");
+const messages_module_1 = require("./modules/messages/messages.module");
+const bookings_module_1 = require("./modules/bookings/bookings.module");
+const notifications_module_1 = require("./modules/notifications/notifications.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -32,6 +35,9 @@ exports.AppModule = AppModule = __decorate([
             veterinarians_module_1.VeterinariansModule,
             pet_sitters_module_1.PetSittersModule,
             mail_module_1.MailModule,
+            messages_module_1.MessagesModule,
+            notifications_module_1.NotificationsModule,
+            bookings_module_1.BookingsModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

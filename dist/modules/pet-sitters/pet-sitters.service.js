@@ -107,6 +107,12 @@ let PetSittersService = class PetSittersService {
             if (!user || !('_id' in user)) {
                 throw new common_1.NotFoundException('User not populated correctly');
             }
+            if (sitter.latitude !== undefined) {
+                user.latitude = sitter.latitude;
+            }
+            if (sitter.longitude !== undefined) {
+                user.longitude = sitter.longitude;
+            }
             return user;
         });
     }
@@ -118,6 +124,12 @@ let PetSittersService = class PetSittersService {
         const user = sitter.user;
         if (!user || !('_id' in user)) {
             throw new common_1.NotFoundException('User not populated correctly');
+        }
+        if (sitter.latitude !== undefined) {
+            user.latitude = sitter.latitude;
+        }
+        if (sitter.longitude !== undefined) {
+            user.longitude = sitter.longitude;
         }
         return user;
     }
@@ -153,6 +165,12 @@ let PetSittersService = class PetSittersService {
         const user = sitter.user;
         if (!user || !('_id' in user)) {
             throw new common_1.NotFoundException('User not populated correctly');
+        }
+        if (sitter.latitude !== undefined) {
+            user.latitude = sitter.latitude;
+        }
+        if (sitter.longitude !== undefined) {
+            user.longitude = sitter.longitude;
         }
         return user;
     }

@@ -4,6 +4,11 @@ import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { UserDocument } from '../users/schemas/user.schema';
 import { UserRole } from '../users/dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChangeEmailDto } from './dto/change-email.dto';
+import { VerifyNewEmailDto } from './dto/verify-new-email.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 export interface Tokens {
     accessToken: string;
     refreshToken: string;
@@ -42,6 +47,22 @@ export declare class AuthService {
         message: string;
     }>;
     getProfile(userId: string): Promise<Partial<UserDocument>>;
+    checkEmailExists(email: string): Promise<UserDocument | null>;
+    forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{
+        message: string;
+    }>;
+    resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{
+        message: string;
+    }>;
+    changeEmail(userId: string, changeEmailDto: ChangeEmailDto): Promise<{
+        message: string;
+    }>;
+    verifyNewEmail(userId: string, verifyDto: VerifyNewEmailDto): Promise<{
+        message: string;
+    }>;
+    changePassword(userId: string, changePasswordDto: ChangePasswordDto): Promise<{
+        message: string;
+    }>;
     signInWithGoogle(idToken: string): Promise<{
         user: {
             id: any;

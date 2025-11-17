@@ -68,6 +68,13 @@ export class VeterinariansService {
       if (!user || !('_id' in user)) {
         throw new NotFoundException('User not populated correctly');
       }
+      // Merge latitude and longitude from Veterinarian into User document
+      if (vet.latitude !== undefined) {
+        (user as any).latitude = vet.latitude;
+      }
+      if (vet.longitude !== undefined) {
+        (user as any).longitude = vet.longitude;
+      }
       return user;
     });
   }
@@ -80,6 +87,13 @@ export class VeterinariansService {
     const user = vet.user as unknown as UserDocument;
     if (!user || !('_id' in user)) {
       throw new NotFoundException('User not populated correctly');
+    }
+    // Merge latitude and longitude from Veterinarian into User document
+    if (vet.latitude !== undefined) {
+      (user as any).latitude = vet.latitude;
+    }
+    if (vet.longitude !== undefined) {
+      (user as any).longitude = vet.longitude;
     }
     return user;
   }
@@ -116,6 +130,13 @@ export class VeterinariansService {
     const user = vet.user as unknown as UserDocument;
     if (!user || !('_id' in user)) {
       throw new NotFoundException('User not populated correctly');
+    }
+    // Merge latitude and longitude from Veterinarian into User document
+    if (vet.latitude !== undefined) {
+      (user as any).latitude = vet.latitude;
+    }
+    if (vet.longitude !== undefined) {
+      (user as any).longitude = vet.longitude;
     }
     return user;
   }

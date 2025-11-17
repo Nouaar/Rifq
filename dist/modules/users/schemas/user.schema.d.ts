@@ -15,6 +15,11 @@ export declare class User extends Document {
     isVerified: boolean;
     verificationCode?: string;
     verificationCodeExpires?: Date;
+    pendingEmail?: string;
+    emailChangeCode?: string;
+    emailChangeCodeExpires?: Date;
+    passwordResetCode?: string;
+    passwordResetCodeExpires?: Date;
     refreshToken?: string;
     hashedRefreshToken?: string;
     specializations?: string[];

@@ -235,7 +235,12 @@ export class AuthService {
     const normalized = email.toLowerCase();
     const user = await this.usersService.findByEmail(normalized);
     if (!user) throw new NotFoundException('User not found');
-    if (user.isVerified) throw new BadRequestException('User already verified');
+    // For non-Google accounts, bail out if already verified (legacy behavior).
+    // For Google accounts, we allow sending a new code each time as an extra
+    // verification step when signing in with Google.
+    if (user.isVerified && user.provider !== 'google') {
+      throw new BadRequestException('User already verified');
+    }
 
     // Prevent spamming resend if a code is still valid
     if (
@@ -282,6 +287,11 @@ export class AuthService {
     } as Partial<UserDocument>;
 
     return safe;
+  }
+
+  async checkEmailExists(email: string): Promise<UserDocument | null> {
+    const normalized = email.toLowerCase().trim();
+    return this.usersService.findByEmail(normalized);
   }
 
   async forgotPassword(
@@ -533,17 +543,65 @@ export class AuthService {
 
   /** Sign in with Google */
   async signInWithGoogle(idToken: string) {
-    const audience = this.configService.get<string>('GOOGLE_IOS_CLIENT_ID');
+    const expectedAudienceRaw =
+      this.configService.get<string>('GOOGLE_IOS_CLIENT_ID');
+    // Normalize to avoid invisible Unicode chars / stray spaces from copy‑paste
+    const expectedAudience = expectedAudienceRaw
+      ? expectedAudienceRaw.replace(/[^\x20-\x7E]/g, '').trim()
+      : undefined;
+    
+    if (!expectedAudience) {
+      console.error('GOOGLE_IOS_CLIENT_ID environment variable is not set');
+      throw new UnauthorizedException(
+        'Google authentication not configured. Missing GOOGLE_IOS_CLIENT_ID',
+      );
+    }
+
     let payload: any;
 
     try {
+      // Verify signature and issuer first, then manually check audience
       const verified = await jwtVerify(idToken, this.jwks, {
         issuer: GOOGLE_ISS,
-        audience,
+        // Don't validate audience here - we'll check it manually
       });
       payload = verified.payload;
-    } catch {
-      throw new UnauthorizedException('Invalid Google token');
+      
+      // Manually verify audience - check both 'aud' and 'azp' claims.
+      // Google tokens can have audience in either field.
+      const rawAud = payload.aud as string | string[] | undefined;
+      const rawAzp = payload.azp as string | undefined;
+
+      const normalize = (val: string | undefined) =>
+        val ? val.replace(/[^\x20-\x7E]/g, '').trim() : undefined;
+
+      const tokenAud =
+        Array.isArray(rawAud) && rawAud.length > 0
+          ? rawAud.map((v) => normalize(v)).filter(Boolean)
+          : rawAud
+          ? [normalize(rawAud as string)]
+          : [];
+      const tokenAzp = normalize(rawAzp);
+      
+      const audienceMatches =
+        tokenAud.includes(expectedAudience) || tokenAzp === expectedAudience;
+      
+      if (!audienceMatches) {
+        console.error(
+          `Audience mismatch. Expected: ${expectedAudience}, got aud: ${JSON.stringify(tokenAud)}, azp: ${tokenAzp}`,
+        );
+        throw new UnauthorizedException(
+          `Invalid Google token: audience mismatch. Expected ${expectedAudience}`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      console.error('Google token verification failed:', error);
+      throw new UnauthorizedException(
+        `Invalid Google token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

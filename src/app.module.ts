@@ -10,6 +10,9 @@ import { PetSittersModule } from './modules/pet-sitters/pet-sitters.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './modules/mail/mail.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,6 +24,9 @@ import { MailModule } from './modules/mail/mail.module';
     VeterinariansModule,
     PetSittersModule,
     MailModule,
+    MessagesModule,
+    NotificationsModule, // Import before BookingsModule since BookingsModule depends on it
+    BookingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

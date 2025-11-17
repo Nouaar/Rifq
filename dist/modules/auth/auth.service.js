@@ -199,8 +199,9 @@ let AuthService = class AuthService {
         const user = await this.usersService.findByEmail(normalized);
         if (!user)
             throw new common_1.NotFoundException('User not found');
-        if (user.isVerified)
+        if (user.isVerified && user.provider !== 'google') {
             throw new common_1.BadRequestException('User already verified');
+        }
         if (user.verificationCodeExpires &&
             user.verificationCodeExpires > new Date()) {
             throw new common_1.BadRequestException('Verification code still valid. Please wait before requesting a new code.');
@@ -238,25 +239,196 @@ let AuthService = class AuthService {
         };
         return safe;
     }
+    async checkEmailExists(email) {
+        const normalized = email.toLowerCase().trim();
+        return this.usersService.findByEmail(normalized);
+    }
+    async forgotPassword(forgotPasswordDto) {
+        const normalized = forgotPasswordDto.email.toLowerCase();
+        const user = await this.usersService.findByEmail(normalized);
+        if (!user) {
+            return {
+                message: 'If an account exists, a password reset code has been sent to your email.',
+            };
+        }
+        if (!user.password) {
+            return {
+                message: 'If an account exists, a password reset code has been sent to your email.',
+            };
+        }
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date(Date.now() + 10 * 60 * 1000);
+        await this.usersService.update(String(user._id), {
+            passwordResetCode: resetCode,
+            passwordResetCodeExpires: expires,
+        });
+        try {
+            await this.mailService.sendVerificationCode(user.email, resetCode);
+        }
+        catch (err) {
+            if (err instanceof Error) {
+                console.error('Failed to send password reset email:', err.message);
+            }
+        }
+        return {
+            message: 'If an account exists, a password reset code has been sent to your email.',
+        };
+    }
+    async resetPassword(resetPasswordDto) {
+        const normalized = resetPasswordDto.email.toLowerCase();
+        const user = await this.usersService.findByEmail(normalized);
+        if (!user) {
+            throw new common_1.BadRequestException('Invalid or expired reset code');
+        }
+        const now = new Date();
+        if (!user.passwordResetCode ||
+            user.passwordResetCode !== resetPasswordDto.code ||
+            !user.passwordResetCodeExpires ||
+            user.passwordResetCodeExpires < now) {
+            throw new common_1.BadRequestException('Invalid or expired reset code');
+        }
+        const hashedPassword = await bcrypt.hash(resetPasswordDto.newPassword, 10);
+        await this.usersService.update(String(user._id), {
+            password: hashedPassword,
+            passwordResetCode: undefined,
+            passwordResetCodeExpires: undefined,
+        });
+        await this.usersService.updateRefreshToken(String(user._id), null);
+        return {
+            message: 'Password reset successfully. Please login with your new password.',
+        };
+    }
+    async changeEmail(userId, changeEmailDto) {
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        if (!user.password) {
+            throw new common_1.BadRequestException('Cannot change email for accounts signed in with Google');
+        }
+        const isPasswordValid = await bcrypt.compare(changeEmailDto.password, user.password);
+        if (!isPasswordValid) {
+            throw new common_1.UnauthorizedException('Password is incorrect');
+        }
+        const normalizedNewEmail = changeEmailDto.newEmail.toLowerCase();
+        const existingUser = await this.usersService.findByEmail(normalizedNewEmail);
+        if (existingUser) {
+            throw new common_1.BadRequestException('Email is already in use');
+        }
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = new Date(Date.now() + 10 * 60 * 1000);
+        await this.usersService.update(String(user._id), {
+            pendingEmail: normalizedNewEmail,
+            emailChangeCode: verificationCode,
+            emailChangeCodeExpires: expires,
+        });
+        try {
+            await this.mailService.sendVerificationCode(normalizedNewEmail, verificationCode);
+        }
+        catch (err) {
+            if (err instanceof Error) {
+                console.error('Failed to send email change verification:', err.message);
+            }
+            throw new common_1.BadRequestException('Failed to send verification code to new email');
+        }
+        return {
+            message: `Verification code sent to ${normalizedNewEmail}. Please verify to complete email change.`,
+        };
+    }
+    async verifyNewEmail(userId, verifyDto) {
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        const normalizedEmail = verifyDto.newEmail.toLowerCase();
+        if (!user.pendingEmail ||
+            user.pendingEmail !== normalizedEmail ||
+            !user.emailChangeCode ||
+            user.emailChangeCode !== verifyDto.code ||
+            !user.emailChangeCodeExpires ||
+            user.emailChangeCodeExpires < new Date()) {
+            throw new common_1.BadRequestException('Invalid or expired verification code');
+        }
+        const existingUser = await this.usersService.findByEmail(normalizedEmail);
+        if (existingUser && String(existingUser._id) !== String(user._id)) {
+            throw new common_1.BadRequestException('Email is already in use');
+        }
+        await this.usersService.update(String(user._id), {
+            email: normalizedEmail,
+            pendingEmail: undefined,
+            emailChangeCode: undefined,
+            emailChangeCodeExpires: undefined,
+        });
+        await this.usersService.updateRefreshToken(String(user._id), null);
+        return {
+            message: 'Email changed successfully. Please login again with your new email.',
+        };
+    }
+    async changePassword(userId, changePasswordDto) {
+        const user = await this.usersService.findById(userId);
+        if (!user) {
+            throw new common_1.NotFoundException('User not found');
+        }
+        if (!user.password) {
+            throw new common_1.BadRequestException('Cannot change password for accounts signed in with Google');
+        }
+        const isPasswordValid = await bcrypt.compare(changePasswordDto.currentPassword, user.password);
+        if (!isPasswordValid) {
+            throw new common_1.UnauthorizedException('Current password is incorrect');
+        }
+        const hashedPassword = await bcrypt.hash(changePasswordDto.newPassword, 10);
+        await this.usersService.update(String(user._id), {
+            password: hashedPassword,
+        });
+        await this.usersService.updateRefreshToken(String(user._id), null);
+        return {
+            message: 'Password changed successfully. Please login again with your new password.',
+        };
+    }
     async signInWithGoogle(idToken) {
-        const audience = this.configService.get('GOOGLE_IOS_CLIENT_ID');
+        const expectedAudienceRaw = this.configService.get('GOOGLE_IOS_CLIENT_ID');
+        const expectedAudience = expectedAudienceRaw
+            ? expectedAudienceRaw.replace(/[^\x20-\x7E]/g, '').trim()
+            : undefined;
+        if (!expectedAudience) {
+            console.error('GOOGLE_IOS_CLIENT_ID environment variable is not set');
+            throw new common_1.UnauthorizedException('Google authentication not configured. Missing GOOGLE_IOS_CLIENT_ID');
+        }
         let payload;
         try {
             const verified = await (0, jose_1.jwtVerify)(idToken, this.jwks, {
                 issuer: GOOGLE_ISS,
-                audience,
             });
             payload = verified.payload;
+            const rawAud = payload.aud;
+            const rawAzp = payload.azp;
+            const normalize = (val) => val ? val.replace(/[^\x20-\x7E]/g, '').trim() : undefined;
+            const tokenAud = Array.isArray(rawAud) && rawAud.length > 0
+                ? rawAud.map((v) => normalize(v)).filter(Boolean)
+                : rawAud
+                    ? [normalize(rawAud)]
+                    : [];
+            const tokenAzp = normalize(rawAzp);
+            const audienceMatches = tokenAud.includes(expectedAudience) || tokenAzp === expectedAudience;
+            if (!audienceMatches) {
+                console.error(`Audience mismatch. Expected: ${expectedAudience}, got aud: ${JSON.stringify(tokenAud)}, azp: ${tokenAzp}`);
+                throw new common_1.UnauthorizedException(`Invalid Google token: audience mismatch. Expected ${expectedAudience}`);
+            }
         }
-        catch {
-            throw new common_1.UnauthorizedException('Invalid Google token');
+        catch (error) {
+            if (error instanceof common_1.UnauthorizedException) {
+                throw error;
+            }
+            console.error('Google token verification failed:', error);
+            throw new common_1.UnauthorizedException(`Invalid Google token: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
         const { sub, email, email_verified, name, picture } = payload;
         if (!email || email_verified !== true) {
             throw new common_1.UnauthorizedException('Email not verified with Google');
         }
         let user = this.usersService.findByProvider
-            ? await this.usersService.findByProvider('google', sub)
+            ?
+                await this.usersService.findByProvider('google', sub)
             : null;
         if (!user) {
             user = await this.usersService.findByEmail(email);
