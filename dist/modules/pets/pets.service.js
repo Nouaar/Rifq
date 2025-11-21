@@ -32,7 +32,7 @@ let PetsService = class PetsService {
             const owner = await this.userModel.findById(ownerId);
             if (!owner)
                 throw new common_1.NotFoundException('Owner not found');
-            const { medicalHistory, ...petData } = createPetDto;
+            const { medicalHistory, photo: photoBase64, ...petData } = createPetDto;
             let photoUrl;
             if (file) {
                 try {
@@ -42,6 +42,16 @@ let PetsService = class PetsService {
                 catch (error) {
                     console.error('Cloudinary upload error:', error);
                     throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }
+            else if (photoBase64 && typeof photoBase64 === 'string') {
+                try {
+                    const result = await this.cloudinaryService.uploadImageFromBase64(photoBase64, 'pets');
+                    photoUrl = result.secure_url;
+                }
+                catch (error) {
+                    console.error('Cloudinary base64 upload error:', error);
+                    throw new Error(`Failed to upload image from base64: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
             }
             const pet = await this.petModel.create({
@@ -81,7 +91,7 @@ let PetsService = class PetsService {
     }
     async update(petId, updatePetDto, file) {
         try {
-            const { medicalHistory, ...petUpdates } = updatePetDto;
+            const { medicalHistory, photo: photoBase64, ...petUpdates } = updatePetDto;
             const pet = await this.petModel.findById(petId);
             if (!pet)
                 throw new common_1.NotFoundException('Pet not found');
@@ -104,6 +114,27 @@ let PetsService = class PetsService {
                 catch (error) {
                     console.error('Cloudinary upload error:', error);
                     throw new Error(`Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }
+            else if (photoBase64 && typeof photoBase64 === 'string') {
+                if (pet.photo) {
+                    const publicId = this.extractPublicId(pet.photo);
+                    if (publicId) {
+                        try {
+                            await this.cloudinaryService.deleteImage(publicId);
+                        }
+                        catch (error) {
+                            console.error('Error deleting old photo:', error);
+                        }
+                    }
+                }
+                try {
+                    const result = await this.cloudinaryService.uploadImageFromBase64(photoBase64, 'pets');
+                    pet.photo = result.secure_url;
+                }
+                catch (error) {
+                    console.error('Cloudinary base64 upload error:', error);
+                    throw new Error(`Failed to upload image from base64: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
             }
             const petUpdateEntries = Object.entries(petUpdates).filter(([, value]) => value !== undefined);

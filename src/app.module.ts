@@ -13,6 +13,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     MessagesModule,
     NotificationsModule, // Import before BookingsModule since BookingsModule depends on it
     BookingsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
