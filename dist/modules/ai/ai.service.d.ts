@@ -25,6 +25,7 @@ export declare class AiService {
     private parseTipsResponse;
     private parseRecommendationsResponse;
     private parseRemindersResponse;
+    private applyStatusPostProcessing;
     private parseStatusResponse;
     private getCached;
     private setCached;

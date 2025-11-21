@@ -214,12 +214,28 @@ Pet Information:
       }
     }
 
+    // Add age-based reminders
+    if (pet.age) {
+      if (pet.age >= 10) {
+        prompt += '\n\n⚠️ Senior pet (10+ years) - should include reminders for:';
+        prompt += '\n- Senior health checkup (every 6 months)';
+        prompt += '\n- Blood work monitoring';
+        prompt += '\n- Joint care and mobility';
+      } else if (pet.age < 1) {
+        prompt += '\n\n⚠️ Young pet - should include reminders for:';
+        prompt += '\n- Vaccination schedule';
+        prompt += '\n- Growth monitoring';
+        prompt += '\n- Training and socialization';
+      }
+    }
+
     prompt += `\n\nGenerate 2-3 specific, actionable reminders for ${pet.name}. Include:
 - Medication schedules (if applicable)
-- Vaccination needs
+- Vaccination needs (especially if missing)
 - Health check recommendations
+- Age-appropriate care reminders
 
-Format as a numbered list. Be specific with dates/times when available.`;
+IMPORTANT: Always generate at least 2 reminders. Format as a numbered list (1., 2., 3.). Be specific with dates/times when available.`;
 
     return prompt;
   }
@@ -239,6 +255,15 @@ Pet Information:
 - Breed: ${pet.breed || 'Unknown'}
 - Age: ${pet.age ? `${pet.age} years` : 'Unknown'}`;
 
+    // Add age-based health note
+    if (pet.age) {
+      if (pet.age >= 10) {
+        prompt += '\n⚠️ Senior pet (10+ years) - requires more frequent monitoring';
+      } else if (pet.age < 1) {
+        prompt += '\n⚠️ Young pet - vaccination schedule critical';
+      }
+    }
+
     if (medicalHistory) {
       if (
         medicalHistory.vaccinations &&
@@ -246,14 +271,14 @@ Pet Information:
       ) {
         prompt += `\n- Vaccinations: ${medicalHistory.vaccinations.join(', ')}`;
       } else {
-        prompt += '\n- Vaccinations: None recorded (may need core vaccines)';
+        prompt += '\n- Vaccinations: None recorded ⚠️ (may need core vaccines - this requires attention)';
       }
 
       if (
         medicalHistory.chronicConditions &&
         medicalHistory.chronicConditions.length > 0
       ) {
-        prompt += `\n- Chronic Conditions: ${medicalHistory.chronicConditions.join(', ')}`;
+        prompt += `\n- Chronic Conditions: ${medicalHistory.chronicConditions.join(', ')} ⚠️ (requires ongoing care)`;
       }
 
       if (
@@ -263,11 +288,30 @@ Pet Information:
         const medList = medicalHistory.currentMedications
           .map((med) => `${med.name} (${med.dosage})`)
           .join(', ');
-        prompt += `\n- Current Medications: ${medList}`;
+        prompt += `\n- Current Medications: ${medList} ⚠️ (on medication - needs monitoring)`;
       }
     }
 
-    prompt += `\n\nProvide a brief health status (one word or short phrase): "Healthy", "Needs Attention", "Due for Checkup", "On Medication", etc. Only return the status word/phrase, nothing else.`;
+    prompt += `\n\nCRITICAL RULES - Follow these EXACTLY (this is very important):
+1. If pet is 10+ years old (senior), you MUST return "Needs Attention" or "Due for Checkup" - DO NOT return "Healthy"
+2. If pet has chronic conditions, you MUST return "Needs Attention" or "On Medication" - DO NOT return "Healthy"
+3. If pet has medications, you MUST return "Needs Attention" or "On Medication" - DO NOT return "Healthy"
+4. If pet has NO vaccinations, you MUST return "Needs Attention" or "Due for Checkup" - DO NOT return "Healthy"
+5. ONLY return "Healthy" if ALL of these are true:
+   - Pet is under 10 years old
+   - Has all required vaccinations
+   - Has NO chronic conditions
+   - Has NO medications
+
+EXAMPLES:
+- Pet age 12, no conditions, no meds → "Needs Attention" (senior pet)
+- Pet age 8, has arthritis, on medication → "Needs Attention" (has conditions/meds)
+- Pet age 5, no vaccinations → "Needs Attention" (missing vaccines)
+- Pet age 3, all vaccines, no conditions, no meds → "Healthy" (only this case)
+
+Based on ${pet.name}'s information above, determine the status. Remember: Senior pets, pets with conditions, pets on medications, or pets without vaccinations should NEVER be "Healthy".
+
+Return ONLY the status word/phrase, nothing else.`;
 
     return prompt;
   }
@@ -364,14 +408,17 @@ Pet Information:
     let reminderIndex = 0;
 
     for (const line of lines) {
+      // Try multiple formats: numbered list, bullet points, or plain text
       if (
         line.match(/^[\d]+[\.\)]\s+/) ||
         line.startsWith('- ') ||
-        line.startsWith('• ')
+        line.startsWith('• ') ||
+        line.startsWith('* ') ||
+        (reminderIndex === 0 && line.length > 20) // First substantial line
       ) {
         const cleaned = line
           .replace(/^[\d]+[\.\)]\s+/, '')
-          .replace(/^[-•]\s+/, '')
+          .replace(/^[-•*]\s+/, '')
           .trim();
 
         if (cleaned.length > 0 && reminderIndex < 3) {
@@ -393,7 +440,94 @@ Pet Information:
       }
     }
 
+    // If no reminders parsed, try to extract from the full response
+    if (reminders.length === 0 && response.trim().length > 0) {
+      this.logger.warn(`No reminders parsed from response, attempting fallback parsing`);
+      // Split by sentences or common separators
+      const sentences = response
+        .split(/[.!?]\s+|\.\n/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 20 && s.length < 200);
+
+      for (let i = 0; i < Math.min(sentences.length, 3); i++) {
+        const sentence = sentences[i];
+        if (sentence) {
+          const date = this.extractDateFromText(sentence);
+          const icon = this.getIconForReminder(sentence);
+          const title = `${pet.name} • ${this.getReminderTitle(sentence)}`;
+          const tint = this.getTintForReminder(sentence);
+
+          reminders.push({
+            icon,
+            title,
+            detail: sentence,
+            date: date.toISOString(),
+            tint,
+          });
+        }
+      }
+    }
+
+    this.logger.log(`Parsed ${reminders.length} reminders from response`);
     return reminders;
+  }
+
+  /**
+   * Apply post-processing to status (override "Healthy" for at-risk pets)
+   */
+  private applyStatusPostProcessing(
+    statusResponse: AiStatusResponseDto,
+    pet: PetDocument,
+    medicalHistory: MedicalHistoryDocument | null,
+  ): AiStatusResponseDto {
+    let status = statusResponse.status;
+    const isSenior = pet.age && pet.age >= 10;
+    const hasConditions = medicalHistory?.chronicConditions && medicalHistory.chronicConditions.length > 0;
+    const hasMedications = medicalHistory?.currentMedications && medicalHistory.currentMedications.length > 0;
+    const noVaccinations = !medicalHistory?.vaccinations || medicalHistory.vaccinations.length === 0;
+    
+    // Force "Needs Attention" if status is "Healthy" for at-risk pets
+    if (status.toLowerCase().includes('healthy')) {
+      if (isSenior || hasConditions || hasMedications || noVaccinations) {
+        this.logger.warn(
+          `⚠️ Overriding "Healthy" status for ${pet.name} (age: ${pet.age}, conditions: ${hasConditions}, meds: ${hasMedications}, vaccines: ${!noVaccinations})`,
+        );
+        status = 'Needs Attention';
+        
+        // Rebuild pills and summary with new status
+        const pills: StatusPillDto[] = [{
+          text: 'Needs Attention',
+          bg: '#F97316',
+          fg: '#9A3412',
+        }];
+        
+        const summaryParts: string[] = [];
+        if (isSenior) {
+          summaryParts.push('Senior pet - monitor closely');
+        }
+        if (hasConditions) {
+          summaryParts.push('Has conditions');
+        }
+        if (hasMedications) {
+          const medCount = medicalHistory?.currentMedications?.length || 0;
+          summaryParts.push(`${medCount} med${medCount > 1 ? 's' : ''}`);
+        }
+        if (noVaccinations) {
+          summaryParts.push('⚠ Needs vaccines');
+        } else if (medicalHistory?.vaccinations && medicalHistory.vaccinations.length > 0) {
+          summaryParts.push('✓ Up-to-date');
+        }
+        
+        return {
+          status,
+          pills,
+          summary: summaryParts.join(' | ') || 'Needs monitoring',
+        };
+      }
+    }
+    
+    // Return original if no override needed
+    return statusResponse;
   }
 
   /**
@@ -404,7 +538,23 @@ Pet Information:
     pet: PetDocument,
     medicalHistory: MedicalHistoryDocument | null,
   ): AiStatusResponseDto {
-    const status = response.trim().split(/\s+/).slice(0, 3).join(' ');
+    let status = response.trim().split(/\s+/).slice(0, 3).join(' ');
+
+    // Post-process: Override "Healthy" for senior pets or pets with conditions
+    const isSenior = pet.age && pet.age >= 10;
+    const hasConditions = medicalHistory?.chronicConditions && medicalHistory.chronicConditions.length > 0;
+    const hasMedications = medicalHistory?.currentMedications && medicalHistory.currentMedications.length > 0;
+    const noVaccinations = !medicalHistory?.vaccinations || medicalHistory.vaccinations.length === 0;
+    
+    // Force "Needs Attention" if AI incorrectly returned "Healthy" for at-risk pets
+    if (status.toLowerCase().includes('healthy')) {
+      if (isSenior || hasConditions || hasMedications || noVaccinations) {
+        this.logger.warn(
+          `⚠️ Overriding "Healthy" status for ${pet.name} (age: ${pet.age}, conditions: ${hasConditions}, meds: ${hasMedications}, vaccines: ${!noVaccinations})`,
+        );
+        status = 'Needs Attention';
+      }
+    }
 
     const pills: StatusPillDto[] = [];
 
@@ -432,32 +582,61 @@ Pet Information:
       });
     }
 
-    // Build summary
+    // Build summary based on status
     const summaryParts: string[] = [];
 
-    if (
-      medicalHistory?.vaccinations &&
-      medicalHistory.vaccinations.length > 0
-    ) {
-      summaryParts.push('✓ Up-to-date');
+    // If status is "Needs Attention", don't say "All good"
+    if (status.toLowerCase().includes('attention') || status.toLowerCase().includes('checkup')) {
+      if (isSenior) {
+        summaryParts.push('Senior pet - monitor closely');
+      }
+      if (hasConditions) {
+        summaryParts.push('Has conditions');
+      }
+      if (hasMedications) {
+        const medCount = medicalHistory?.currentMedications?.length || 0;
+        summaryParts.push(`${medCount} med${medCount > 1 ? 's' : ''}`);
+      }
+      if (noVaccinations) {
+        summaryParts.push('⚠ Needs vaccines');
+      } else if (medicalHistory?.vaccinations && medicalHistory.vaccinations.length > 0) {
+        summaryParts.push('✓ Up-to-date');
+      }
     } else {
-      summaryParts.push('⚠ Needs vaccines');
-    }
+      // For healthy pets
+      if (
+        medicalHistory?.vaccinations &&
+        medicalHistory.vaccinations.length > 0
+      ) {
+        summaryParts.push('✓ Up-to-date');
+      } else {
+        summaryParts.push('⚠ Needs vaccines');
+      }
 
-    const medCount =
-      medicalHistory?.currentMedications?.length || 0;
-    if (medCount > 0) {
-      summaryParts.push(`${medCount} med`);
+      const medCount =
+        medicalHistory?.currentMedications?.length || 0;
+      if (medCount > 0) {
+        summaryParts.push(`${medCount} med${medCount > 1 ? 's' : ''}`);
+      }
     }
 
     if (pet.weight) {
       summaryParts.push(`${pet.weight.toFixed(1)} kg`);
     }
 
+    // Set summary based on status
+    let summary = summaryParts.join(' | ') || 'All good';
+    if (status.toLowerCase().includes('attention') || status.toLowerCase().includes('checkup')) {
+      // Don't say "All good" for pets that need attention
+      if (summary === 'All good') {
+        summary = 'Needs monitoring';
+      }
+    }
+
     return {
       status,
       pills,
-      summary: summaryParts.join(' | ') || 'All good',
+      summary,
     };
   }
 
@@ -671,6 +850,13 @@ Pet Information:
       });
 
       const reminders = this.parseRemindersResponse(response, pet);
+      
+      // Log reminder generation
+      this.logger.log(`Generated ${reminders.length} reminders for ${pet.name}`);
+      if (reminders.length === 0) {
+        this.logger.warn(`⚠️ No reminders parsed from response for ${pet.name}. Response: ${response.substring(0, 200)}`);
+      }
+      
       const result = { reminders };
       
       // Cache the result
@@ -724,7 +910,9 @@ Pet Information:
     // Check cache first
     const cached = this.getCached(this.statusCache, petId);
     if (cached) {
-      return cached;
+      // Apply post-processing to cached status as well (in case pet data changed)
+      const { pet, medicalHistory } = await this.getPetWithHistory(petId);
+      return this.applyStatusPostProcessing(cached, pet, medicalHistory);
     }
 
     const { pet, medicalHistory } = await this.getPetWithHistory(petId);
@@ -749,7 +937,8 @@ Pet Information:
       const staleCache = this.statusCache.get(petId);
       if (staleCache) {
         this.logger.warn(`⚠️ Returning stale cached status for ${petId} due to error`);
-        return staleCache.data;
+        const { pet, medicalHistory } = await this.getPetWithHistory(petId);
+        return this.applyStatusPostProcessing(staleCache.data, pet, medicalHistory);
       }
       
       // Check if it's an API key error
@@ -762,7 +951,8 @@ Pet Information:
         const stale = this.statusCache.get(petId);
         if (stale) {
           this.logger.warn(`⚠️ Returning stale cache due to daily quota exhaustion`);
-          return stale.data;
+          const { pet, medicalHistory } = await this.getPetWithHistory(petId);
+          return this.applyStatusPostProcessing(stale.data, pet, medicalHistory);
         }
         throw new Error('AI_DAILY_QUOTA_EXCEEDED: Daily quota exceeded. Please try again tomorrow.');
       }
@@ -771,7 +961,8 @@ Pet Information:
       if (error instanceof Error && (error.message.includes('Rate limit') || error.message.includes('429'))) {
         const stale = this.statusCache.get(petId);
         if (stale) {
-          return stale.data;
+          const { pet, medicalHistory } = await this.getPetWithHistory(petId);
+          return this.applyStatusPostProcessing(stale.data, pet, medicalHistory);
         }
       }
       
